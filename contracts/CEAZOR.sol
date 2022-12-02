@@ -46,6 +46,7 @@ contract CEAZOR_Token is ERC20, ERC20Burnable, Ownable {
     require(to != address(0), "If you want to burn, use the burn function");
     require(to != address(this), "Don't send your tokens to the contract"); //added this
   if (dutyFree[to]) {
+    address owner = _msgSender();
     _transfer(owner, to, tokensToTransfer);
      }else if (basePercent > 0){
             uint256 tokenTax = findTwoPercent(value);
