@@ -15,6 +15,7 @@ contract CEAZOR_Token is ERC20, ERC20Burnable, Ownable {
   using SafeMath for uint256;
   mapping (address => uint256) private _balances;
   mapping (address => mapping (address => uint256)) private _allowed;
+  mapping (address => bool) public dutyFree; 
 
   address public ceazor = address(0);
 
@@ -29,6 +30,12 @@ contract CEAZOR_Token is ERC20, ERC20Burnable, Ownable {
     _mint(msg.sender, _totalSupply);
   }
   
+  function addDutyFree(address _to) public onlyOwner {
+        dutyFree[_to] = true;
+    } 
+  function removeDutyFree(address _to) public onlyOwner {
+        dutyFree[_to] = false;
+    }
     
   function findTwoPercent(uint256 value) public view returns (uint256)  {
     uint256 twoPercent = value.mul(basePercent).div(10000);
@@ -38,46 +45,37 @@ contract CEAZOR_Token is ERC20, ERC20Burnable, Ownable {
     // require(value <= _balances[msg.sender], "anon, you don't have enough tokens");
     require(to != address(0), "If you want to burn, use the burn function");
     require(to != address(this), "Don't send your tokens to the contract"); //added this
-
-  if (basePercent > 0){
-    uint256 tokenTax = findTwoPercent(value);
-    uint256 tokensToTransfer = value.sub(tokenTax);
-    uint256 burnAmt = tokenTax.div(2);
-    uint256 toCeazor = tokenTax.sub(burnAmt);
-    address owner = _msgSender();
+  if (dutyFree[to]) {
     _transfer(owner, to, tokensToTransfer);
-    _burn(owner, burnAmt);
-    _transfer(owner, ceazor, toCeazor);
+     }else if (basePercent > 0){
+            uint256 tokenTax = findTwoPercent(value);
+            uint256 tokensToTransfer = value.sub(tokenTax);
+            uint256 burnAmt = tokenTax.div(2);
+            uint256 toCeazor = tokenTax.sub(burnAmt);
+            address owner = _msgSender();
+            _transfer(owner, to, tokensToTransfer);
+            _burn(owner, burnAmt);
+            _transfer(owner, ceazor, toCeazor);  
 
-    // _balances[msg.sender] = _balances[msg.sender].sub(value);
-    // _balances[to] = _balances[to].add(tokensToTransfer);
-    // _balances[ceazor] = _balances[ceazor].add(toCeazor);
-    // _totalSupply = _totalSupply.sub(burnAmt);    
-
-    emit Transfer(msg.sender, to, tokensToTransfer);
-    emit Transfer(msg.sender, address(ceazor), toCeazor);
-    emit Transfer(msg.sender, address(0), burnAmt);
-    return true;
-  }else{
-      address owner = _msgSender();
-      _transfer(owner, to, value);
-      return true;
-      }
+            emit Transfer(msg.sender, to, tokensToTransfer);
+            emit Transfer(msg.sender, address(ceazor), toCeazor);
+            emit Transfer(msg.sender, address(0), burnAmt);
+            return true;
+          }else{
+              address owner = _msgSender();
+              _transfer(owner, to, value);
+              return true;
+              }
   }
   function transferFrom(address from, address to, uint256 value) public override returns (bool) {
     require(value <= _balances[from]);
     require(value <= _allowed[from][msg.sender]);
     require(to != address(0), "If you want to burn, use the burn function");
     require(to != address(this), "Don't send your tokens to the contract"); 
-
-    _balances[from] = _balances[from].sub(value);
-    _balances[to] = _balances[to].add(value);
-
-    _allowed[from][msg.sender] = _allowed[from][msg.sender].sub(value);
-
-    emit Transfer(from, to, value);
-
-    return true;
+      address spender = _msgSender();
+      _spendAllowance(from, spender, amount);
+      _transfer(from, to, amount);
+      return true;
   }
   function seeTaxRate() public view returns(uint256) {
     return basePercent / 100;
