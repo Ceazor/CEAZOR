@@ -7,9 +7,10 @@ pragma solidity ^0.8.11;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 
 
-contract CEAZOR is ERC20, Ownable {
+contract CEAZOR_Token is ERC20, ERC20Burnable, Ownable {
 
   using SafeMath for uint256;
   mapping (address => uint256) private _balances;
@@ -19,53 +20,51 @@ contract CEAZOR is ERC20, Ownable {
 
   string constant tokenName = "CEAZOR";
   string constant tokenSymbol = "CEAZOR";
+  uint256 _totalSupply = 100000000;
+
   uint256 public basePercent = 0; //will set to 200 after LGE
 
   constructor(
   ) public payable ERC20(tokenName, tokenSymbol) {
     _mint(msg.sender, _totalSupply);
   }
-
-  function approve(address spender, uint256 value) public override returns (bool) {
-    require(spender != address(0));
-    _allowed[msg.sender][spender] = value;
-    emit Approval(msg.sender, spender, value);
-    return true;
-  }
   
-  function multiTransfer(address[] memory receivers, uint256[] memory amounts) public {
-    for (uint256 i = 0; i < receivers.length; i++) {
-      transfer(receivers[i], amounts[i]);
-    }
-  }
-
+    
   function findTwoPercent(uint256 value) public view returns (uint256)  {
     uint256 twoPercent = value.mul(basePercent).div(10000);
     return twoPercent;
   }
-
   function transfer(address to, uint256 value) public override returns (bool) {
-    require(value <= _balances[msg.sender], "anon, you don't have enough tokens");
+    // require(value <= _balances[msg.sender], "anon, you don't have enough tokens");
     require(to != address(0), "If you want to burn, use the burn function");
     require(to != address(this), "Don't send your tokens to the contract"); //added this
 
+  if (basePercent > 0){
     uint256 tokenTax = findTwoPercent(value);
     uint256 tokensToTransfer = value.sub(tokenTax);
     uint256 burnAmt = tokenTax.div(2);
     uint256 toCeazor = tokenTax.sub(burnAmt);
+    address owner = _msgSender();
+    _transfer(owner, to, tokensToTransfer);
+    _burn(owner, burnAmt);
+    _transfer(owner, ceazor, toCeazor);
 
-    _balances[msg.sender] = _balances[msg.sender].sub(value);
-    _balances[to] = _balances[to].add(tokensToTransfer);
-    _balances[ceazor] = _balances[ceazor].add(toCeazor);
-    _totalSupply = _totalSupply.sub(burnAmt);    
+    // _balances[msg.sender] = _balances[msg.sender].sub(value);
+    // _balances[to] = _balances[to].add(tokensToTransfer);
+    // _balances[ceazor] = _balances[ceazor].add(toCeazor);
+    // _totalSupply = _totalSupply.sub(burnAmt);    
 
     emit Transfer(msg.sender, to, tokensToTransfer);
     emit Transfer(msg.sender, address(ceazor), toCeazor);
     emit Transfer(msg.sender, address(0), burnAmt);
     return true;
+  }else{
+      address owner = _msgSender();
+      _transfer(owner, to, value);
+      return true;
+      }
   }
-
-  function transferFrom(address from, address to, uint256 value) public returns (bool) {
+  function transferFrom(address from, address to, uint256 value) public override returns (bool) {
     require(value <= _balances[from]);
     require(value <= _allowed[from][msg.sender]);
     require(to != address(0), "If you want to burn, use the burn function");
@@ -76,50 +75,12 @@ contract CEAZOR is ERC20, Ownable {
 
     _allowed[from][msg.sender] = _allowed[from][msg.sender].sub(value);
 
-    emit Transfer(from, to, tokensToTransfer);
+    emit Transfer(from, to, value);
 
     return true;
   }
-
-  function increaseAllowance(address spender, uint256 addedValue) public override returns (bool) {
-    require(spender != address(0));
-    _allowed[msg.sender][spender] = (_allowed[msg.sender][spender].add(addedValue));
-    emit Approval(msg.sender, spender, _allowed[msg.sender][spender]);
-    return true;
-  }
-
-  function decreaseAllowance(address spender, uint256 subtractedValue) public override returns (bool) {
-    require(spender != address(0));
-    _allowed[msg.sender][spender] = (_allowed[msg.sender][spender].sub(subtractedValue));
-    emit Approval(msg.sender, spender, _allowed[msg.sender][spender]);
-    return true;
-  }
-
-  function _mint(address account, uint256 amount) internal override {
-    require(amount != 0, "Ceazor don't try to mint to the blackhole");
-    _balances[account] = _balances[account].add(amount);
-    emit Transfer(address(0), account, amount);
-  }
-
-  function burn(uint256 amount) external {
-    _burn(msg.sender, amount);
-  }
-
-  function _burn(address account, uint256 amount) internal override {
-    require(amount != 0);
-    require(amount <= _balances[account]);
-    _totalSupply = _totalSupply.sub(amount);
-    _balances[account] = _balances[account].sub(amount);
-    emit Transfer(account, address(0), amount);
-  }
-
-  function burnFrom(address account, uint256 amount) external {
-    require(amount <= _allowed[account][msg.sender]);
-    _allowed[account][msg.sender] = _allowed[account][msg.sender].sub(amount);
-    _burn(account, amount);
-  }
-  function seeTaxRate() public view returns(unit256) {
-    return _basePercent / 100;
+  function seeTaxRate() public view returns(uint256) {
+    return basePercent / 100;
   }
   function setTax(uint _basePercent) public onlyOwner {
     require(_basePercent < 201, "Ceazor, don't be greedy!");
@@ -129,4 +90,8 @@ contract CEAZOR is ERC20, Ownable {
     require(_ceazor != ceazor, "Ceazor is already Ceazor");
     ceazor = _ceazor;
   }
+  function inCaseTokensGetStuck(address _token, address to) external onlyOwner {
+        uint256 amount = IERC20(_token).balanceOf(address(this));
+        IERC20(_token).safeTransfer(to, amount);
+    }
 }
